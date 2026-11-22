@@ -8,7 +8,7 @@ Mynd is an offline comic reader for Windows 11 x64. It reads image folders, CBZ,
 
 1. Extract `Mynd-win-x64.zip` and keep the extracted files together.
 2. Run `Mynd.exe`. The preview is unsigned, so Windows may display a SmartScreen prompt.
-3. Select **Add library folder** and choose your comics folder, such as `MIC`. Use **Settings** to manage roots or turn off automatic watching.
+3. Select **Add library folder** and choose your comics folder. Use **Settings** to manage roots or turn off automatic watching.
 
 Windows 11 normally includes the Microsoft Edge WebView2 Runtime. If your PC lacks it, install Microsoft's [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) before opening Mynd. The app works offline after setup.
 
