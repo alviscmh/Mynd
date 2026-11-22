@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Mynd</title>
+  <link rel="icon" href="mynd-icon.png" type="image/png">
+  <link rel="stylesheet" href="app.css">
+  <script src="vendor/lucide.js" defer></script>
+  <script src="bridge.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+<div id="kkomic-viewer" data-theme="purple">
+  <div class="window-shell">
+  <aside class="app-rail" aria-label="Mynd">
+    <button type="button" class="brand" data-action="home" aria-label="Mynd library home" title="Library home"><img class="brand-mark" src="mynd-icon.png" width="32" height="32" alt=""><span>Mynd</span></button>
+    <nav class="workspace-nav" data-slide-selection aria-label="Workspace">
+      <span class="selection-highlight" aria-hidden="true"></span>
+      <button type="button" data-action="workspace" data-value="split" aria-pressed="true"><i data-lucide="library-big" aria-hidden="true"></i>Library</button>
+      <button type="button" data-action="workspace" data-value="reader" aria-pressed="false"><i data-lucide="book-open" aria-hidden="true"></i>Reader</button>
+    </nav>
+    <div class="rail-actions">
+      <button class="rail-detach" type="button" data-action="detach" aria-label="Detach reader" aria-pressed="false"><i data-lucide="panels-top-left" aria-hidden="true"></i><span>Detach</span></button>
+      <button class="settings-button" type="button" data-action="settings"><i data-lucide="settings-2" aria-hidden="true"></i> Settings</button>
+    </div>
+  </aside>
+  <main class="workspace">
+    <section class="library" id="kkomic-library" aria-label="Comic library">
+      <div class="library-header">
+      <div class="library-heading">
+        <h1>Library</h1>
+        <div class="library-actions">
+          <button class="icon refresh-button" type="button" data-action="refresh" aria-label="Refresh library" title="Refresh library"><i data-lucide="refresh-cw" aria-hidden="true"></i></button>
+          <button class="icon" type="button" data-action="cover-options" aria-label="Cover size and spacing" title="Cover size and spacing"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button>
+          <div class="view-buttons" data-slide-selection="compact" aria-label="Library view">
+          <span class="selection-highlight" aria-hidden="true"></span>
+          <button class="icon" type="button" data-action="view" data-value="grid" aria-label="Cover grid" title="Cover grid"><i data-lucide="layout-grid" aria-hidden="true"></i></button>
+          <button class="icon" type="button" data-action="view" data-value="list" aria-label="Details list" title="Details list"><i data-lucide="list" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="library-location">
+        <nav class="breadcrumbs" aria-label="Folder path"></nav>
+        <div class="item-count" aria-live="polite"></div>
+      </div>
+      <div class="library-tools">
+        <label class="search-box"><i data-lucide="search" aria-hidden="true"></i><input type="search" placeholder="Search library" aria-label="Search library"></label>
+        <div class="sort-box"></div>
+      </div>
+      <div class="filter-bar">
+        <div class="filter-list" aria-label="Tag filters"></div>
+        <div class="match-buttons" data-slide-selection="compact" role="group" aria-label="Match selected tags">
+          <span class="selection-highlight" aria-hidden="true"></span>
+          <button type="button" data-action="match" data-value="all" title="Match every selected tag">All</button>
+          <button type="button" data-action="match" data-value="any" title="Match any selected tag">Any</button>
+        </div>
+      </div>
+      <div class="selection-bar" aria-live="polite"></div>
+      </div>
+      <div class="library-scroll">
+        <div class="collection" data-view="grid"></div>
+      </div>
+    </section>
+    <div class="split-divider" role="separator" aria-label="Library and reader width" aria-orientation="vertical" aria-controls="kkomic-library" tabindex="0"></div>
+    <section class="reader" aria-label="Comic reader">
+      <div class="reader-stage" data-empty="true">
+        <div class="reader-empty">
+          <span class="empty-mark"><i data-lucide="book-open" aria-hidden="true"></i></span>
+          <h2>Open a comic</h2>
+          <p class="reader-empty-text">Choose a volume from your library.</p>
+          <button type="button" class="primary" data-action="add-source">Add library folder</button>
+        </div>
+        <div class="reader-top reader-chrome">
+          <div class="reading-header"><h2 class="reading-title"></h2><span class="reading-path"></span></div>
+          <div class="reader-options">
+            <button type="button" class="icon dock-reader" data-action="detach" aria-label="Reconnect reader" title="Reconnect reader"><i data-lucide="panel-left-close" aria-hidden="true"></i></button>
+            <div class="reader-mode"></div>
+            <div class="layout-buttons" data-slide-selection="compact" role="group" aria-label="Page layout">
+              <span class="selection-highlight" aria-hidden="true"></span>
+              <button type="button" class="icon" data-action="layout" data-value="single" aria-label="Single page" title="Single page"><i data-lucide="file" aria-hidden="true"></i></button>
+              <button type="button" class="icon" data-action="layout" data-value="spread" aria-label="Two-page spread" title="Two-page spread"><i data-lucide="columns-2" aria-hidden="true"></i></button>
+            </div>
+            <div class="zoom-controls" role="group" aria-label="Page scale">
+              <button type="button" class="icon" data-action="zoom-step" data-value="out" aria-label="Zoom out" title="Zoom out"><i data-lucide="minus" aria-hidden="true"></i></button>
+              <button type="button" class="scale-trigger" data-action="scale-menu" popovertarget="kkomic-scale-menu" aria-label="Page scale" aria-expanded="false" aria-controls="kkomic-scale-menu"><span></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+              <button type="button" class="icon" data-action="zoom-step" data-value="in" aria-label="Zoom in" title="Zoom in"><i data-lucide="plus" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <div class="reader-quick-actions">
+            <button class="icon" type="button" data-action="reveal-volume" aria-label="Show current volume in library" title="Show current volume in library" hidden><i data-lucide="folder-open" aria-hidden="true"></i></button>
+            <button class="icon close-comic" type="button" data-action="close-comic" aria-label="Close current comic" title="Close current comic"><i data-lucide="x" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div class="page-viewport" role="region" aria-label="Comic pages" tabindex="0"><div class="pages"></div></div>
+        <div class="detail-zoom" hidden>
+          <output for="kkomic-detail-zoom" class="detail-zoom-value"></output>
+          <div class="detail-zoom-track">
+            <span class="detail-zoom-rail" aria-hidden="true"><span class="detail-zoom-thumb"></span></span>
+            <input id="kkomic-detail-zoom" type="range" orient="vertical" min="0" step="1" aria-label="Zoom level">
+          </div>
+        </div>
+        <div class="reader-dock reader-chrome">
+          <div class="filmstrip" id="kkomic-filmstrip" aria-label="Page filmstrip" inert>
+            <div class="film-items"></div>
+          </div>
+          <button type="button" class="filmstrip-handle" data-action="filmstrip" aria-label="Show filmstrip" aria-controls="kkomic-filmstrip" aria-expanded="false" title="Show filmstrip"><span></span></button>
+          <div class="reader-bottom" aria-label="Page navigation and previews">
+            <div class="page-arrows" aria-label="Page navigation">
+              <button class="icon" type="button" data-action="arrow" data-value="left" aria-label="Previous page" title="Previous page"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
+              <button class="icon" type="button" data-action="arrow" data-value="right" aria-label="Next page" title="Next page"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+            </div>
+            <div class="page-scrubber"><input type="range" min="1" value="24" aria-label="Go to page"><output class="page-number" aria-live="polite"></output></div>
+            <div class="preview-buttons">
+              <button type="button" class="icon" data-action="page-grid" aria-label="Browse all pages" title="Browse all pages"><i data-lucide="grid-3x3" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <button class="icon volume-corner" type="button" data-action="volume" data-value="left" aria-label="Previous volume" title="Previous volume"><i data-lucide="skip-back" aria-hidden="true"></i></button>
+          <button class="icon volume-corner" type="button" data-action="volume" data-value="right" aria-label="Next volume" title="Next volume"><i data-lucide="skip-forward" aria-hidden="true"></i></button>
+        </div>
+        <div class="reader-notice" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+  </div>
+  <div class="entry-menu" popover="auto" role="menu" aria-label="Library item actions">
+    <button type="button" role="menuitem" tabindex="-1" data-action="show-entry-folder"><i data-lucide="folder-open" aria-hidden="true"></i> Show in File Explorer</button>
+  </div>
+  <div class="scale-menu" id="kkomic-scale-menu" popover="auto" role="group" aria-label="Page scale"></div>
+  <dialog class="app-dialog" aria-labelledby="kkomic-dialog-title">
+    <div class="dialog-heading">
+      <div class="dialog-label"><h2 id="kkomic-dialog-title"></h2><span class="page-grid-description" hidden></span></div>
+      <div class="page-grid-size" hidden><label for="kkomic-grid-columns">Columns</label><input id="kkomic-grid-columns" data-grid-columns type="range" min="3" max="6" step="1" value="4"><output for="kkomic-grid-columns"></output></div>
+      <button type="button" data-action="close-dialog" class="icon" title="Close" aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+    </div>
+    <div class="dialog-content"></div>
+  </dialog>
+</div>
+
+</body></html>
