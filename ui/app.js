@@ -8,6 +8,7 @@
   const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
   const desktop = window.desktop;
+  const archiveFormats = new Set(['CBZ', 'CBR', 'PDF']);
   const libraryRoot = { id: 'libraries', title: 'Library folders', type: 'folder' };
   let byId = { libraries: libraryRoot };
   let sourcePaths = {};
@@ -95,11 +96,17 @@
   const libraryPane = $('.library');
   const libraryScroll = $('.library-scroll');
   const collection = $('.collection');
+  const requestedPageCounts = new WeakSet();
   const coverObserver = new IntersectionObserver((entries, observer) => {
     for (const { target, isIntersecting } of entries) {
       if (!isIntersecting) continue;
       observer.unobserve(target);
       target.src = target.dataset.coverSrc;
+      const volume = byId[target.closest('.entry-open')?.dataset.value];
+      if (desktop && role === 'main' && volume && !volume.pages && archiveFormats.has(volume.format) && !requestedPageCounts.has(volume)) {
+        requestedPageCounts.add(volume);
+        desktop.request('countPages', { id: volume.id, revision: volume.revision }).catch(() => {});
+      }
     }
   }, { root: libraryScroll, rootMargin: '120px 0px' });
   const stage = $('.reader-stage');
@@ -298,7 +305,7 @@
       requestAnimationFrame(() => requestAnimationFrame(() => desktop.request('libraryFrame').catch(() => {})));
     }
     if (previousEntry.id !== current().id || previousEntry.revision !== current().revision) {
-      if (current().id && !current().pages) {
+      if (current().id && (!current().pages || archiveFormats.has(current().format))) {
         if (wasWaiting) renderReader(false);
         openVolume(current().id, true);
       }
@@ -362,11 +369,11 @@
     const selected = state.selected.includes(entry.id);
     const count = (amount, noun) => `${amount} ${noun}${amount === 1 ? '' : 's'}`;
     const detail = entry.type === 'folder' ? count(children(entry.id).length, 'item')
-      : entry.type === 'image' ? entry.format : entry.pages ? count(entry.pages, 'page') : '';
-    const format = ['CBZ', 'CBR', 'PDF'].includes(entry.format) ? entry.format : '';
+      : entry.type === 'image' ? entry.format : pageCountLabel(entry.pages);
+    const format = entry.format === 'Image folder' ? 'IMG' : archiveFormats.has(entry.format) ? entry.format : '';
     const folderIcon = entry.type === 'folder' ? icon('folder') : '';
     const check = isVolume(entry) ? `<button class="select-volume" type="button" data-action="select-volume" data-value="${entry.id}" aria-label="Select ${escape(entry.title)}" aria-pressed="${selected}" title="Select ${escape(entry.title)}">${selected ? icon('check') : ''}</button>` : '';
-    const meta = format ? `<span class="entry-detail entry-archive"><span class="entry-page-count" title="${escape(detail)}">${escape(detail)}</span><span class="entry-format">${format}</span></span>`
+    const meta = format ? `<span class="entry-detail entry-format-row"><span class="entry-page-count" title="${escape(detail)}">${escape(detail)}</span><span class="entry-format" title="${entry.format}">${format}</span></span>`
       : `<span class="entry-detail" title="${escape(detail)}">${escape(detail)}${folderIcon}</span>`;
     return `<div class="entry" data-selected="${selected}" data-current="${entry.id === state.current}"><button type="button" class="entry-open" data-action="entry" data-value="${entry.id}">${cover(entry)}<span class="entry-title" title="${escape(entry.title)}">${escape(entry.title)}</span>${meta}</button>${check}</div>`;
   }
@@ -518,14 +525,15 @@
 
   function readerStatus() {
     const first = page();
-    const last = spread() && first < current().pages ? first + 1 : first;
+    const total = current().pages;
+    const last = spread() && first < total ? first + 1 : first;
     const display = first === last ? String(first) : `${first}–${last}`;
     scrubber.value = first;
-    scrubber.style.setProperty('--progress', `${(last / current().pages) * 100}%`);
-    scrubber.setAttribute('aria-valuetext', `${display} of ${current().pages}`);
-    $('.page-number').textContent = `${display} / ${current().pages}`;
+    scrubber.style.setProperty('--progress', (first - 1) / Math.max(1, total - 1));
+    scrubber.setAttribute('aria-valuetext', `${display} of ${total}`);
+    $('.page-number').textContent = `${display} / ${total}`;
     $('[data-value="left"][data-action="arrow"]').disabled = first <= 1;
-    $('[data-value="right"][data-action="arrow"]').disabled = last >= current().pages;
+    $('[data-value="right"][data-action="arrow"]').disabled = last >= total;
     renderFilmstrip();
   }
 
@@ -766,19 +774,31 @@
     save();
   }
 
-  function updateReadingProgress() {
+  const pageCountLabel = (pages) => pages ? `${pages} page${pages === 1 ? '' : 's'}` : '';
+
+  function applyPageCount({ volumeId, revision, pages }) {
+    const entry = byId[volumeId];
+    if (!entry || entry.revision !== revision || entry.pages === pages) return;
+    entry.pages = pages;
+    const count = collection.querySelector(`.entry-open[data-value="${entry.id}"] .entry-page-count`);
+    if (!count) return;
+    count.title = count.textContent = pageCountLabel(pages);
+    if (state.progress[entry.id]) updateReadingProgress(entry);
+  }
+
+  function updateReadingProgress(entry = current()) {
     if (state.prefs.sort === 'progress') {
-      renderLibrary(false);
+      renderLibrary();
       return;
     }
-    const cover = $(`[data-action="entry"][data-value="${state.current}"] .cover-art`);
-    if (!cover || !isVolume(current())) return;
+    const cover = $(`[data-action="entry"][data-value="${entry.id}"] .cover-art`);
+    if (!cover || !isVolume(entry)) return;
     let bar = cover.querySelector('.tile-progress');
     if (!bar) {
       cover.insertAdjacentHTML('beforeend', '<span class="tile-progress" role="progressbar" aria-label="Reading progress"><i></i></span>');
       bar = cover.querySelector('.tile-progress');
     }
-    const read = percentage(current());
+    const read = percentage(entry);
     bar.setAttribute('aria-valuenow', read);
     bar.firstElementChild.style.width = `${read}%`;
   }
@@ -805,7 +825,7 @@
     const request = ++openSequence;
     const entry = byId[id];
     if (!entry) return;
-    if (!entry.pages) {
+    if (!entry.pages || archiveFormats.has(entry.format)) {
       showNotice('Opening volume…');
       try {
         const loaded = await desktop.request('open', { id });
@@ -1754,8 +1774,8 @@
 
   function receive(message) {
     if (message.type === 'show-volume-in-library') { revealVolumeInLibrary(message.volumeId); return; }
+    if (message.type === 'page-count') { applyPageCount(message); return; }
     if (message.type === 'library') useCatalog(message.catalog);
-    if (message.type === 'volume' && byId[message.entry.id]) Object.assign(byId[message.entry.id], message.entry);
     if (message.type === 'notice') showNotice(message.message);
     if (message.type === 'detaching') { detachPreparing = message.preparing; renderReader(false); }
     const patch = message.type === 'prepare-reader' ? message.state : message.patch;
