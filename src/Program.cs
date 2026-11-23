@@ -71,6 +71,7 @@ namespace Mynd
         private readonly List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
         private readonly Timer scanTimer = new Timer { Interval = 650 };
         private readonly Timer saveTimer = new Timer { Interval = 400 };
+        private readonly Timer indexTimer = new Timer { Interval = 900 };
         private readonly Timer detachTimer = new Timer { Interval = 8000 };
         private readonly Timer warmReaderTimer = new Timer { Interval = 600 };
         private readonly Timer sweepTimer = new Timer { Interval = 20000 };
@@ -80,6 +81,7 @@ namespace Mynd
         private Task<CoreWebView2Environment> web;
         private WebViewDataFolder webData;
         private Task scan;
+        private Task<bool> indexWrite;
         private bool scanAgain;
         private bool scanAll;
         private bool indexPending;
@@ -107,6 +109,12 @@ namespace Mynd
             saveTimer.Tick += (sender, args) => { saveTimer.Stop(); WriteProfile(); };
             main = new ComicWindow(this, false, profile.MainBounds);
             main.ApplyTheme(ThemeName());
+            Library.PageCountChanged += OnPageCountChanged;
+            indexTimer.Tick += async (sender, args) =>
+            {
+                indexTimer.Stop();
+                await FlushIndexAsync();
+            };
             detachTimer.Tick += (sender, args) =>
             {
                 RequestDetached(false);
@@ -131,9 +139,12 @@ namespace Mynd
             main.FormClosing += (sender, args) =>
             {
                 quitting = true;
+                indexTimer.Stop();
                 profile.MainBounds = main.GetSavedBounds();
                 if (reader != null) reader.Close();
                 WriteProfile();
+                if (indexWrite != null) indexPending |= !indexWrite.GetAwaiter().GetResult();
+                if (indexPending) Library.SaveIndex(indexFile);
             };
             main.Shown += async (sender, args) =>
             {
@@ -351,7 +362,7 @@ namespace Mynd
                     TraceStartup(changes == null ? "Library verification completed" : "Changed folders scan completed");
                     if (changed && !quitting) Broadcast(new { type = "library", catalog = Library.Snapshot() }, null);
                     indexPending |= changed;
-                    if (indexPending) indexPending = !await Task.Run(() => Library.SaveIndex(indexFile));
+                    await FlushIndexAsync();
                     if (!quitting && !sweepTimer.Enabled) sweepTimer.Start();
                 }
             }
@@ -361,6 +372,35 @@ namespace Mynd
                 Broadcast(new { type = "notice", message = "Could not refresh the library. " + error.Message }, null);
             }
             finally { scan = null; }
+        }
+
+        private async Task FlushIndexAsync()
+        {
+            if (quitting || !indexPending || indexWrite != null) return;
+            indexPending = false;
+            indexWrite = Task.Run(() => Library.SaveIndex(indexFile));
+            try
+            {
+                var written = await indexWrite;
+                if (indexPending && !quitting) indexTimer.Start();
+                indexPending |= !written;
+            }
+            finally { indexWrite = null; }
+        }
+
+        private void OnPageCountChanged(LibraryEntry entry)
+        {
+            try
+            {
+                main.BeginInvoke(new Action(() =>
+                {
+                    if (quitting || !Library.IsCurrent(entry)) return;
+                    indexPending = true;
+                    indexTimer.Start();
+                    Broadcast(new { type = "page-count", volumeId = entry.id, revision = entry.revision, pages = entry.pages }, null);
+                }));
+            }
+            catch (InvalidOperationException) { } // The main window may have closed while reading metadata.
         }
 
         private void Broadcast(object message, ComicWindow exclude)
@@ -535,9 +575,10 @@ namespace Mynd
                     await RefreshAsync();
                     return Library.Snapshot();
                 case "open":
-                    var entry = await Task.Run(() => Library.OpenAsync(GetString(data, "id") ?? ""));
-                    Broadcast(new { type = "volume", entry = entry }, window);
-                    return entry;
+                    return await Task.Run(() => Library.OpenAsync(GetString(data, "id") ?? ""));
+                case "countPages":
+                    await Task.Run(() => Library.CountPagesAsync(GetString(data, "id"), GetString(data, "revision")));
+                    return null;
                 case "showEntryFolder":
                     var entryFolder = Library.EntryFolder(GetString(data, "id") ?? "");
                     if (!Directory.Exists(entryFolder)) throw new IOException("This folder is unavailable.");
@@ -579,6 +620,7 @@ namespace Mynd
                 foreach (var watcher in watchers) watcher.Dispose();
                 scanTimer.Dispose();
                 saveTimer.Dispose();
+                indexTimer.Dispose();
                 detachTimer.Dispose();
                 warmReaderTimer.Dispose();
                 sweepTimer.Dispose();

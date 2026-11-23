@@ -67,6 +67,8 @@ namespace Mynd
         private readonly string cache;
         private readonly SemaphoreSlim imageWork = new SemaphoreSlim(4);
         private readonly SemaphoreSlim pageWork = new SemaphoreSlim(2);
+        private readonly SemaphoreSlim countWork = new SemaphoreSlim(1);
+        internal event Action<LibraryEntry> PageCountChanged;
         private readonly ConcurrentDictionary<string, Lazy<Task<Media>>> thumbnails = new ConcurrentDictionary<string, Lazy<Task<Media>>>();
         private sealed class Catalog
         {
@@ -301,6 +303,12 @@ namespace Mynd
             return id != null && catalog.Entries.TryGetValue(id, out entry) && entry.type == null;
         }
 
+        internal bool IsCurrent(LibraryEntry entry)
+        {
+            LibraryEntry current;
+            return catalog.Entries.TryGetValue(entry.id, out current) && current == entry;
+        }
+
         private LibraryEntry Find(string id)
         {
             LibraryEntry entry;
@@ -317,19 +325,45 @@ namespace Mynd
             return entry.type == "folder" || entry.format == "Image folder" ? entry.Path : Path.GetDirectoryName(entry.Path);
         }
 
-        internal async Task<LibraryEntry> OpenAsync(string id)
+        internal Task<LibraryEntry> OpenAsync(string id)
         {
-            var entry = Find(id);
+            return LoadVolumeAsync(Find(id), true);
+        }
+
+        private LibraryEntry NeedsPageCount(string id, string revision)
+        {
+            LibraryEntry entry;
+            return id != null && revision != null && catalog.Entries.TryGetValue(id, out entry) &&
+                entry.FileVersion == revision && entry.pages == 0 ? entry : null;
+        }
+
+        internal async Task CountPagesAsync(string id, string revision)
+        {
+            if (NeedsPageCount(id, revision) == null) return;
+            await countWork.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var entry = NeedsPageCount(id, revision);
+                if (entry != null) await LoadVolumeAsync(entry, false).ConfigureAwait(false);
+            }
+            finally { countWork.Release(); }
+        }
+
+        private async Task<LibraryEntry> LoadVolumeAsync(LibraryEntry entry, bool keepPageData)
+        {
             if (entry.Images != null) return entry;
             await entry.OpenLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (entry.pages > 0) return entry;
+                if (entry.Pdf != null || entry.ArchivePages != null || (!keepPageData && entry.pages > 0)) return entry;
+                int count;
+                PdfDocument pdf = null;
+                string[] pageNames = null;
                 if (entry.format == "PDF")
                 {
                     var file = await Complete(StorageFile.GetFileFromPathAsync(entry.Path)).ConfigureAwait(false);
-                    entry.Pdf = await Complete(PdfDocument.LoadFromFileAsync(file)).ConfigureAwait(false);
-                    entry.pages = checked((int)entry.Pdf.PageCount);
+                    pdf = await Complete(PdfDocument.LoadFromFileAsync(file)).ConfigureAwait(false);
+                    count = checked((int)pdf.PageCount);
                 }
                 else
                 {
@@ -337,17 +371,28 @@ namespace Mynd
                     {
                         using (var stream = OpenFile(entry.Path))
                         using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
-                            entry.ArchivePages = SortPages(archive.Entries.Where(member => member.Length > 0).Select(member => member.FullName));
+                            pageNames = SortPages(archive.Entries.Where(member => member.Length > 0).Select(member => member.FullName));
                     }
                     else
                     {
                         var list = await RunTarAsync(8 * 1024 * 1024, "-tf", entry.Path).ConfigureAwait(false);
-                        entry.ArchivePages = SortPages(Encoding.UTF8.GetString(list).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        pageNames = SortPages(Encoding.UTF8.GetString(list).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                             .Where(name => name.IndexOfAny(new[] { '*', '?', '[', ']', '\\' }) < 0));
                     }
-                    entry.pages = entry.ArchivePages.Length;
+                    count = pageNames.Length;
                 }
-                if (entry.pages == 0) throw new IOException("This volume contains no supported pages.");
+                if (count == 0) throw new IOException("This volume contains no supported pages.");
+                if (keepPageData)
+                {
+                    entry.Pdf = pdf;
+                    entry.ArchivePages = pageNames;
+                }
+                if (entry.pages != count)
+                {
+                    entry.pages = count;
+                    var changed = PageCountChanged;
+                    if (changed != null) changed(entry);
+                }
                 return entry;
             }
             finally { entry.OpenLock.Release(); }

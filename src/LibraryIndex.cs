@@ -66,10 +66,9 @@ namespace Mynd
                     }
                     else
                     {
-                        if (!ArchiveKinds.Contains(Path.GetExtension(entry.Path))) return false;
+                        if (!ArchiveKinds.Contains(Path.GetExtension(entry.Path)) || entry.pages < 0) return false;
                         // Archive/PDF handles and page lists are opened lazily in this process.
                         entry.FileVersion = entry.revision;
-                        entry.pages = 0;
                     }
                     tree.Add(entry.id, entry);
                 }
