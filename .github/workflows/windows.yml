@@ -1,0 +1,23 @@
+name: Windows x64 build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build portable app
+        shell: powershell
+        run: ./Build.ps1 -Zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mynd-win-x64
+          path: dist/Mynd-win-x64.zip
+          if-no-files-found: error
