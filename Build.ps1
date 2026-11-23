@@ -55,6 +55,9 @@ foreach ($notice in @('LICENSE.txt', 'NOTICE.txt')) {
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ui') -Destination $package -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Mynd.ico'), (Join-Path $PSScriptRoot 'README.md'), (Join-Path $PSScriptRoot 'CHANGELOG.md'), (Join-Path $PSScriptRoot 'THIRD_PARTY_NOTICES.md') -Destination $package -Force
+$docs = Join-Path $package 'docs'
+New-Item -ItemType Directory -Path $docs -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs/screenshots') -Destination $docs -Recurse -Force
 
 if ($Zip) {
     $zipPath = Join-Path ([IO.Path]::GetFullPath($OutputPath)) 'Mynd-win-x64.zip'

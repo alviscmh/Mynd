@@ -2,6 +2,17 @@
 
 Mynd was called KKomic through version 0.2.5. New versions are listed first.
 
+## 0.3.0
+
+- Evened out library header spacing and aligned the tag icon, folder path, and collection count.
+- Added an **IMG** badge next to the page count for volumes stored as folders of images.
+- Added new README screenshots and a downloadable library of original manga and comic samples.
+
+## 0.2.9
+
+- Aligned the reader's purple progress fill with the slider dot in single-page and two-page views.
+- Added background page counting for CBZ, CBR, and PDF. Counts appear as you browse, are saved across restarts, and refresh when the comic file changes.
+
 ## 0.2.8
 
 - Added **Show current volume in library** beside the reader’s Close button. It opens the volume’s containing folder from either reader window. If that folder is already open, the volume’s row moves to the top of the library.
